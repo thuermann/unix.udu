@@ -1,5 +1,5 @@
 /*
- * $Id: udu.c,v 1.1 2000/11/29 05:38:25 urs Exp $
+ * $Id: udu.c,v 1.2 2002/03/24 19:11:42 urs Exp $
  *
  * Show disk usage and internal fragmentation needed by directories
  * with a given file system block size.
@@ -18,14 +18,16 @@ void usage(char *name)
     fprintf(stderr, "Usage: %s [-x] [-b bsize] [dir ...]\n", name);
 }
 
+typedef long long int size;
+
 int do_dir(char *name);
 
 int blocksize  = 1024;
 int one_fs     = 0;
 
-int count      = 0;
-int total_size = 0;
-int frag       = 0;
+long count      = 0;
+size total_size = 0;
+size frag       = 0;
 
 int main(int argc, char **argv)
 {
@@ -53,7 +55,7 @@ int main(int argc, char **argv)
 	do_dir(".");
     }
 
-    printf("%d %d %d %.1f %.1f %.2f%%\n",
+    printf("%ld %lld %lld %.1f %.1f %.2f%%\n",
 	   count, total_size, frag,
 	   (double)total_size / count, (double)frag / count,
 	   (100.0 * frag) / (total_size + frag));
