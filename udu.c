@@ -1,5 +1,5 @@
 /*
- * $Id: udu.c,v 1.4 2002/09/08 18:48:29 urs Exp $
+ * $Id: udu.c,v 1.5 2002/09/08 18:48:43 urs Exp $
  *
  * Show disk usage and internal fragmentation needed by directories
  * with a given file system block size.
@@ -22,7 +22,7 @@ typedef long long int size;
 
 void print_head(void);
 void print(long count, size total_size, size frag);
-int  do_dir(char *name, void (*func)(struct stat *st));
+void do_file(char *name, void (*func)(struct stat *st));
 void do_count(struct stat *st);
 
 int blocksize  = 1024;
@@ -58,7 +58,7 @@ int main(int argc, char **argv)
     if (optind < argc) {
 	int i;
 	for (i = optind; i < argc; i++) {
-	    do_dir(argv[i], do_count);
+	    do_file(argv[i], do_count);
 	    print(count, total_size, frag);
 	    total_count      += count;
 	    total_total_size += total_size;
@@ -68,7 +68,7 @@ int main(int argc, char **argv)
 	if (argc - optind >= 2)
 	    print(total_count, total_total_size, total_frag);
     } else {
-	do_dir(".", do_count);
+	do_file(".", do_count);
 	print(count, total_size, frag);
     }
 
@@ -88,38 +88,37 @@ void print(long count, size total_size, size frag)
 	(100.0 * frag) / (total_size + frag));
 }
 
-int do_dir(char *name, void (*func)(struct stat *st))
+void do_file(char *name, void (*func)(struct stat *st))
 {
-    DIR *dir;
-    struct dirent *ent;
     struct stat st;
-    dev_t dev;
 
-    if (!(dir = opendir(name)))
-	return -1;
-    if (chdir(name) < 0)
-	return -1;
-    if (stat(".", &st) < 0)
-	return -1;
-    dev = st.st_dev;
+    if (lstat(name, &st) < 0)
+	return;
+    else if (S_ISREG(st.st_mode))
+	func(&st);
+    else if (S_ISDIR(st.st_mode)) {
+	DIR *dir;
+	struct dirent *ent;
+	dev_t dev;
 
-    while (ent = readdir(dir)) {
-	if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
-	    continue;
+	if (!(dir = opendir(name)))
+	    return;
+	if (chdir(name) < 0)
+	    return;
+	if (stat(".", &st) < 0)
+	    return;
+	dev = st.st_dev;
 
-	if (lstat(ent->d_name, &st) < 0)
-	    continue;
-	if (S_ISREG(st.st_mode)) {
-	    func(&st);
-	} else if (S_ISDIR(st.st_mode)) {
-	    if (st.st_dev == dev || !one_fs)
-		do_dir(ent->d_name, func);
+	while (ent = readdir(dir)) {
+	    if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
+		continue;
+	    if (!one_fs || st.st_dev == dev)
+		do_file(ent->d_name, func);
 	}
-    }
-    chdir("..");
-    closedir(dir);
 
-    return 0;
+	chdir("..");
+	closedir(dir);
+    }
 }
 
 void do_count(struct stat *st)
