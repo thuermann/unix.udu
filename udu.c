@@ -1,5 +1,5 @@
 /*
- * $Id: udu.c,v 1.5 2002/09/08 18:48:43 urs Exp $
+ * $Id: udu.c,v 1.6 2004/04/20 21:28:30 urs Exp $
  *
  * Show disk usage and internal fragmentation needed by directories
  * with a given file system block size.
@@ -22,7 +22,7 @@ typedef long long int size;
 
 void print_head(void);
 void print(long count, size total_size, size frag);
-void do_file(char *name, void (*func)(struct stat *st));
+void walk(struct stat *parent, char *name, void (*func)(struct stat *st));
 void do_count(struct stat *st);
 
 int blocksize  = 1024;
@@ -58,7 +58,7 @@ int main(int argc, char **argv)
     if (optind < argc) {
 	int i;
 	for (i = optind; i < argc; i++) {
-	    do_file(argv[i], do_count);
+	    walk(NULL, argv[i], do_count);
 	    print(count, total_size, frag);
 	    total_count      += count;
 	    total_total_size += total_size;
@@ -68,7 +68,7 @@ int main(int argc, char **argv)
 	if (argc - optind >= 2)
 	    print(total_count, total_total_size, total_frag);
     } else {
-	do_file(".", do_count);
+	walk(NULL, ".", do_count);
 	print(count, total_size, frag);
     }
 
@@ -88,7 +88,7 @@ void print(long count, size total_size, size frag)
 	(100.0 * frag) / (total_size + frag));
 }
 
-void do_file(char *name, void (*func)(struct stat *st))
+void walk(struct stat *parent, char *name, void (*func)(struct stat *st))
 {
     struct stat st;
 
@@ -99,25 +99,24 @@ void do_file(char *name, void (*func)(struct stat *st))
     else if (S_ISDIR(st.st_mode)) {
 	DIR *dir;
 	struct dirent *ent;
-	dev_t dev;
 
-	if (!(dir = opendir(name)))
+	if (one_fs && parent && parent->st_dev != st.st_dev)
 	    return;
+
 	if (chdir(name) < 0)
 	    return;
-	if (stat(".", &st) < 0)
-	    return;
-	dev = st.st_dev;
+	if (!(dir = opendir(".")))
+	    goto leave;
 
 	while (ent = readdir(dir)) {
 	    if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
 		continue;
-	    if (!one_fs || st.st_dev == dev)
-		do_file(ent->d_name, func);
+	    walk(&st, ent->d_name, func);
 	}
 
-	chdir("..");
 	closedir(dir);
+    leave:
+	chdir("..");
     }
 }
 
