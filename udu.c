@@ -1,5 +1,5 @@
 /*
- * $Id: udu.c,v 1.2 2002/03/24 19:11:42 urs Exp $
+ * $Id: udu.c,v 1.3 2002/09/08 18:47:57 urs Exp $
  *
  * Show disk usage and internal fragmentation needed by directories
  * with a given file system block size.
@@ -20,7 +20,8 @@ void usage(char *name)
 
 typedef long long int size;
 
-int do_dir(char *name);
+int  do_dir(char *name, void (*func)(struct stat *st));
+void do_count(struct stat *st);
 
 int blocksize  = 1024;
 int one_fs     = 0;
@@ -50,9 +51,9 @@ int main(int argc, char **argv)
     if (optind < argc) {
 	int i;
 	for (i = optind; i < argc; i++)
-	    do_dir(argv[i]);
+	    do_dir(argv[i], do_count);
     } else {
-	do_dir(".");
+	do_dir(".", do_count);
     }
 
     printf("%ld %lld %lld %.1f %.1f %.2f%%\n",
@@ -63,7 +64,7 @@ int main(int argc, char **argv)
     return 0;
 }
 
-int do_dir(char *name)
+int do_dir(char *name, void (*func)(struct stat *st))
 {
     DIR *dir;
     struct dirent *ent;
@@ -85,16 +86,21 @@ int do_dir(char *name)
 	if (lstat(ent->d_name, &st) < 0)
 	    continue;
 	if (S_ISREG(st.st_mode)) {
-	    count++;
-	    total_size += st.st_size;
-	    frag += blocksize - st.st_size % blocksize;
+	    func(&st);
 	} else if (S_ISDIR(st.st_mode)) {
 	    if (st.st_dev == dev || !one_fs)
-		do_dir(ent->d_name);
+		do_dir(ent->d_name, func);
 	}
     }
     chdir("..");
     closedir(dir);
 
     return 0;
+}
+
+void do_count(struct stat *st)
+{
+    count++;
+    total_size += st->st_size;
+    frag += (blocksize - st->st_size % blocksize) % blocksize;
 }
