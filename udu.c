@@ -1,5 +1,5 @@
 /*
- * $Id: udu.c,v 1.3 2002/09/08 18:47:57 urs Exp $
+ * $Id: udu.c,v 1.4 2002/09/08 18:48:29 urs Exp $
  *
  * Show disk usage and internal fragmentation needed by directories
  * with a given file system block size.
@@ -20,6 +20,8 @@ void usage(char *name)
 
 typedef long long int size;
 
+void print_head(void);
+void print(long count, size total_size, size frag);
 int  do_dir(char *name, void (*func)(struct stat *st));
 void do_count(struct stat *st);
 
@@ -29,6 +31,10 @@ int one_fs     = 0;
 long count      = 0;
 size total_size = 0;
 size frag       = 0;
+
+long total_count      = 0;
+size total_total_size = 0;
+size total_frag       = 0;
 
 int main(int argc, char **argv)
 {
@@ -48,20 +54,38 @@ int main(int argc, char **argv)
 	}
     }
 
+    print_head();
     if (optind < argc) {
 	int i;
-	for (i = optind; i < argc; i++)
+	for (i = optind; i < argc; i++) {
 	    do_dir(argv[i], do_count);
+	    print(count, total_size, frag);
+	    total_count      += count;
+	    total_total_size += total_size;
+	    total_frag       += frag;
+	    count = total_size = frag = 0;
+	}
+	if (argc - optind >= 2)
+	    print(total_count, total_total_size, total_frag);
     } else {
 	do_dir(".", do_count);
+	print(count, total_size, frag);
     }
 
-    printf("%ld %lld %lld %.1f %.1f %.2f%%\n",
-	   count, total_size, frag,
-	   (double)total_size / count, (double)frag / count,
-	   (100.0 * frag) / (total_size + frag));
-
     return 0;
+}
+
+void print_head(void)
+{
+    printf(" count  total size  total frag  size/file  frag/file  %%frag\n");
+}
+
+void print(long count, size total_size, size frag)
+{
+    printf("%6ld  %10lld  %10lld  %9.1f  %9.1f  %5.2f%%\n",
+	count, total_size, frag,
+	(double)total_size / count, (double)frag / count,
+	(100.0 * frag) / (total_size + frag));
 }
 
 int do_dir(char *name, void (*func)(struct stat *st))
