@@ -1,15 +1,15 @@
 /*
- * $Id: udu.c,v 1.8 2012/10/15 21:26:33 urs Exp $
+ * $Id: udu.c,v 1.9 2012/10/15 21:27:16 urs Exp $
  *
  * Show disk usage and internal fragmentation needed by directories
  * with a given file system block size.
  */
 
+#define _XOPEN_SOURCE 500
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
-#include <dirent.h>
+#include <ftw.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -22,9 +22,8 @@ typedef long long int size;
 
 static void print_head(void);
 static void print(long count, size total_size, size frag);
-static void walk(const struct stat *parent, const char *name,
-		 void (*func)(const struct stat *st));
-static void do_count(const struct stat *st);
+static int  do_count(const char *file, const struct stat *st, int type,
+		     struct FTW *ftw);
 
 static int blocksize  = 1024;
 static int one_fs     = 0;
@@ -40,7 +39,7 @@ static size total_frag       = 0;
 int main(int argc, char **argv)
 {
     int errflg = 0;
-    int opt;
+    int opt, nfds, flags;
 
     while ((opt = getopt(argc, argv, "b:x")) != -1) {
 	switch (opt) {
@@ -64,11 +63,14 @@ int main(int argc, char **argv)
 	exit(1);
     }
 
+    nfds  = 1024;
+    flags = FTW_PHYS | (one_fs ? FTW_MOUNT : 0);
+
     print_head();
     if (optind < argc) {
 	int i;
 	for (i = optind; i < argc; i++) {
-	    walk(NULL, argv[i], do_count);
+	    nftw(argv[i], do_count, nfds, flags);
 	    print(count, total_size, frag);
 	    total_count      += count;
 	    total_total_size += total_size;
@@ -78,7 +80,7 @@ int main(int argc, char **argv)
 	if (argc - optind >= 2)
 	    print(total_count, total_total_size, total_frag);
     } else {
-	walk(NULL, ".", do_count);
+	nftw(".", do_count, nfds, flags);
 	print(count, total_size, frag);
     }
 
@@ -98,42 +100,13 @@ static void print(long count, size total_size, size frag)
 	(100.0 * frag) / (total_size + frag));
 }
 
-static void walk(const struct stat *parent, const char *name,
-		 void (*func)(const struct stat *st))
+static int do_count(const char *file, const struct stat *st, int type,
+		    struct FTW *ftw)
 {
-    struct stat st;
-
-    if (lstat(name, &st) < 0)
-	return;
-    else if (S_ISREG(st.st_mode))
-	func(&st);
-    else if (S_ISDIR(st.st_mode)) {
-	DIR *dir;
-	struct dirent *ent;
-
-	if (one_fs && parent && parent->st_dev != st.st_dev)
-	    return;
-
-	if (chdir(name) < 0)
-	    return;
-	if (!(dir = opendir(".")))
-	    goto leave;
-
-	while (ent = readdir(dir)) {
-	    if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
-		continue;
-	    walk(&st, ent->d_name, func);
-	}
-
-	closedir(dir);
-    leave:
-	chdir("..");
+    if (type == FTW_F && S_ISREG(st->st_mode)) {
+	count++;
+	total_size += st->st_size;
+	frag += (blocksize - st->st_size % blocksize) % blocksize;
     }
-}
-
-static void do_count(const struct stat *st)
-{
-    count++;
-    total_size += st->st_size;
-    frag += (blocksize - st->st_size % blocksize) % blocksize;
+    return 0;
 }
