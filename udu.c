@@ -1,5 +1,5 @@
 /*
- * $Id: udu.c,v 1.6 2004/04/20 21:28:30 urs Exp $
+ * $Id: udu.c,v 1.7 2012/10/15 21:25:37 urs Exp $
  *
  * Show disk usage and internal fragmentation needed by directories
  * with a given file system block size.
@@ -13,28 +13,29 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-void usage(char *name)
+static void usage(const char *name)
 {
     fprintf(stderr, "Usage: %s [-x] [-b bsize] [dir ...]\n", name);
 }
 
 typedef long long int size;
 
-void print_head(void);
-void print(long count, size total_size, size frag);
-void walk(struct stat *parent, char *name, void (*func)(struct stat *st));
-void do_count(struct stat *st);
+static void print_head(void);
+static void print(long count, size total_size, size frag);
+static void walk(const struct stat *parent, const char *name,
+		 void (*func)(const struct stat *st));
+static void do_count(const struct stat *st);
 
-int blocksize  = 1024;
-int one_fs     = 0;
+static int blocksize  = 1024;
+static int one_fs     = 0;
 
-long count      = 0;
-size total_size = 0;
-size frag       = 0;
+static long count      = 0;
+static size total_size = 0;
+static size frag       = 0;
 
-long total_count      = 0;
-size total_total_size = 0;
-size total_frag       = 0;
+static long total_count      = 0;
+static size total_total_size = 0;
+static size total_frag       = 0;
 
 int main(int argc, char **argv)
 {
@@ -75,12 +76,12 @@ int main(int argc, char **argv)
     return 0;
 }
 
-void print_head(void)
+static void print_head(void)
 {
     printf(" count  total size  total frag  size/file  frag/file  %%frag\n");
 }
 
-void print(long count, size total_size, size frag)
+static void print(long count, size total_size, size frag)
 {
     printf("%6ld  %10lld  %10lld  %9.1f  %9.1f  %5.2f%%\n",
 	count, total_size, frag,
@@ -88,7 +89,8 @@ void print(long count, size total_size, size frag)
 	(100.0 * frag) / (total_size + frag));
 }
 
-void walk(struct stat *parent, char *name, void (*func)(struct stat *st))
+static void walk(const struct stat *parent, const char *name,
+		 void (*func)(const struct stat *st))
 {
     struct stat st;
 
@@ -120,7 +122,7 @@ void walk(struct stat *parent, char *name, void (*func)(struct stat *st))
     }
 }
 
-void do_count(struct stat *st)
+static void do_count(const struct stat *st)
 {
     count++;
     total_size += st->st_size;
