@@ -1,5 +1,5 @@
 /*
- * $Id: udu.c,v 1.7 2012/10/15 21:25:37 urs Exp $
+ * $Id: udu.c,v 1.8 2012/10/15 21:26:33 urs Exp $
  *
  * Show disk usage and internal fragmentation needed by directories
  * with a given file system block size.
@@ -39,20 +39,29 @@ static size total_frag       = 0;
 
 int main(int argc, char **argv)
 {
+    int errflg = 0;
     int opt;
 
     while ((opt = getopt(argc, argv, "b:x")) != -1) {
 	switch (opt) {
 	case 'b':
-	    blocksize = atoi(optarg);
+	    if ((blocksize = atoi(optarg)) <= 0) {
+		fprintf(stderr, "Invalid block size %d\n", blocksize);
+		errflg = 1;
+	    }
 	    break;
 	case 'x':
 	    one_fs = 1;
 	    break;
 	case '?':
-	    usage(argv[0]);
-	    exit(1);
+	    errflg = 1;
+	    break;
 	}
+    }
+
+    if (errflg) {
+	usage(argv[0]);
+	exit(1);
     }
 
     print_head();
